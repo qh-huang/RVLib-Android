@@ -2,7 +2,6 @@ package org.qiao.rvlibexample;
 
 import android.app.Activity;
 import android.os.Bundle;
-import android.os.Environment;
 import android.view.View;
 
 import com.google.common.collect.Lists;
@@ -13,9 +12,9 @@ import org.qiao.rvlib.visualization.VisualizationView;
 import org.qiao.rvlib.visualization.layer.LaserScanLayer;
 import org.qiao.rvlib.visualization.layer.Layer;
 import org.qiao.rvlib.visualization.layer.OccupancyGridLayer;
+import org.qiao.rvlib.visualization.layer.ParticlesLayer;
 import org.qiao.rvlib.visualization.layer.RobotLayer;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
 
 public class MainActivity extends Activity {
@@ -25,6 +24,8 @@ public class MainActivity extends Activity {
     private RobotLayer robotLayer;
     private LaserScanLayer laserscanLayer;
     private OccupancyGridLayer occgridLayer;
+    private ParticlesLayer particlesLayer;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -32,8 +33,9 @@ public class MainActivity extends Activity {
         robotLayer = new RobotLayer("base_footprint");
         laserscanLayer = new LaserScanLayer("scan");
         occgridLayer = new OccupancyGridLayer("grid_map");
+        particlesLayer = new ParticlesLayer("particles");
         visualizationView = (VisualizationView) findViewById(R.id.visualization);
-        visualizationView.onCreate(Lists.<Layer>newArrayList(occgridLayer, robotLayer, laserscanLayer));
+        visualizationView.onCreate(Lists.<Layer>newArrayList(occgridLayer, robotLayer, laserscanLayer, particlesLayer));
     }
 
     @Override
@@ -85,5 +87,19 @@ public class MainActivity extends Activity {
             e.printStackTrace();
             System.exit(1);
         }
+    }
+
+    public void onAddParticleBtnClick(View v) {
+        final int NUM_OF_PARTICLES = 50;
+        for (int i=0; i<NUM_OF_PARTICLES; i++) {
+            double px = (Math.random() - 0.5) * 500;
+            double py = (Math.random() - 0.5) * 500;
+            double ptheta = Math.random() * Math.PI * 2;
+            particlesLayer.addParticle((float)px, (float)py, (float)ptheta);
+        }
+    }
+
+    public void onClearParticlesBtnClick(View v) {
+        particlesLayer.clearParticles();
     }
 }

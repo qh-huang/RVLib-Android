@@ -38,4 +38,24 @@
         android:layout_toEndOf="@id/button_laserscan"
         android:onClick="onReadMapFileBtnClick"/>
 
+    <Button
+        style="?android:attr/buttonStyleSmall"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Add Particles"
+        android:id="@+id/button_add_particles"
+        android:layout_alignParentTop="true"
+        android:layout_toEndOf="@id/button_readmap"
+        android:onClick="onAddParticleBtnClick"/>
+
+    <Button
+        style="?android:attr/buttonStyleSmall"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Clear Particles"
+        android:id="@+id/button_clear_particles"
+        android:layout_alignParentTop="true"
+        android:layout_toEndOf="@id/button_add_particles"
+        android:onClick="onClearParticlesBtnClick"/>
+
 </RelativeLayout>
