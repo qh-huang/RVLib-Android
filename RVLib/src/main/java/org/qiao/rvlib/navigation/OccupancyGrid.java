@@ -10,9 +10,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.reflect.Array;
 import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
 import java.util.ArrayList;
 import java.util.Map;
 
@@ -39,6 +37,8 @@ public class OccupancyGrid {
     public static OccupancyGrid fromYamlFile(String filepath) throws IOException {
         InputStream input = new FileInputStream(new File(filepath));
         Yaml yaml = new Yaml();
+
+        // [NOTE] debug only!! yaml.load(input) can be invoke just once!!
         //Log.d(TAG, "yaml: " + yaml.dumpAsMap(yaml.load(input)));
         @SuppressWarnings("unchecked")
         Map<String, Object> map = (Map<String, Object>) yaml.load(input);
@@ -50,6 +50,10 @@ public class OccupancyGrid {
         Log.d(TAG, "occupied_thresh: " + map.get("occupied_thresh") + " type: " + map.get("occupied_thresh").getClass().toString());
         Log.d(TAG, "free_thresh: " + map.get("free_thresh") + " type: " + map.get("free_thresh").getClass().toString());
         */
+        //if(map == null) {
+        //    Log.e(TAG, "Load YAML file Failed, exit program");
+        //    System.exit(1);
+        //}
         String map_filepath = (String)map.get("image");
         Bitmap bitmap = BitmapFactory.decodeFile(map_filepath);
         Bitmap.Config config = bitmap.getConfig();
@@ -58,17 +62,20 @@ public class OccupancyGrid {
         int map_height = bitmap.getHeight();
         ArrayList poseArr = (ArrayList)map.get("origin");
         double x, y, theta;
-        x = (double)poseArr.get(0) * 100; // scale to cm
-        y = (double)poseArr.get(1) * 100; // scale to cm
+        x = (double)poseArr.get(0);
+        y = (double)poseArr.get(1);
         theta = (double)poseArr.get(2);
         Pose pose = new Pose(x, y, theta);
         double resolution = (Double)map.get("resolution");
-        resolution *= 100; // scale to cm
+        double occupy_threshold = (Double)map.get("occupied_thresh");
+        double free_threshold = (Double)map.get("free_thresh");
         MapMetaData info = new MapMetaData();
         info.setHeight(map_height);
         info.setWidth(map_width);
         info.setOrigin(pose);
         info.setResolution((float)resolution);
+        info.setOccThreshold((float)occupy_threshold);
+        info.setFreeThreshold((float)free_threshold);
         int bytes = bitmap.getByteCount();
         //Log.d(TAG, "width height = " + map_width + " " + map_height);
         //Log.d(TAG, "bytes = " + bytes);
@@ -76,8 +83,13 @@ public class OccupancyGrid {
         bitmap.copyPixelsToBuffer(buffer);
         byte[] bufferArr = buffer.array();
         byte[] byte_arr = new byte[bytes / 4]; // only need 1 channel
-        for (int i=0; i<bytes/4; i++) {
-            byte_arr[i] = (byte)((int)bufferArr[i*4 + 2] & 0xFF); // config is ARGB, take G channel
+        for (int row=0; row < map_height; row++) {
+            for (int col=0; col < map_width; col++) {
+                int i = row*map_width + col;
+                //int index = (row)*map_width + col; // ros-order: origin is left-down
+                int index = (map_height-1-row)*map_width + col; // cv-order: upside-down, orgin is left-up
+                byte_arr[index] = (byte)((int)bufferArr[i*4 + 2] & 0xFF); // config is ARGB, take G channel
+            }
         }
         ByteBuffer bufChannelG = ByteBuffer.wrap(byte_arr);
         OccupancyGrid og = new OccupancyGrid();

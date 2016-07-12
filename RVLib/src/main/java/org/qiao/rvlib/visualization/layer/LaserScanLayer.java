@@ -17,12 +17,12 @@ import javax.microedition.khronos.opengles.GL10;
 public class LaserScanLayer extends DefaultLayer {
     private static final String TAG = "LaserScanLayer";
 
-    public static final Color FREE_SPACE_COLOR = Color.fromHexAndAlpha("377dfa", 0.1f);
-    public static final Color OCCUPIED_SPACE_COLOR = Color.fromHexAndAlpha("377dfa", 0.3f);
-    public static final float LASER_SCAN_POINT_SIZE = 2.f;
+    public static final Color FREE_SPACE_COLOR = Color.fromHexAndAlpha("377dfa", 0.7f);
+    public static final Color OCCUPIED_SPACE_COLOR = Color.fromHexAndAlpha("377dfa", 0.9f);
+    public static final float LASER_SCAN_POINT_SIZE = 3.f;
     public static final int LASER_SCAN_STRIDE = 1;
 
-    private static final float PIXELS_PER_METER = 100.f;
+    private static final float PIXELS_PER_METER = 20.f; // 1 pixel = 0.05m
 
     private final Object mutex;
 
@@ -50,7 +50,7 @@ public class LaserScanLayer extends DefaultLayer {
                 // [NOTE] since we don't have a transform tree, apply transform here
                 gl.glPushMatrix();
                 OpenGlTransform.apply(gl, transform);
-                gl.glScalef(PIXELS_PER_METER, 100.f, 1.f); // [FIXME] not sure if this line correct...
+                //gl.glScalef(PIXELS_PER_METER, PIXELS_PER_METER, 1.f);
                 // End applying transform
                 Vertices.drawTriangleFan(gl, vertexFrontBuffer, FREE_SPACE_COLOR);
                 // Drop the first point which is required for the triangle fan but is
@@ -73,7 +73,8 @@ public class LaserScanLayer extends DefaultLayer {
     }
 
     public void setLaserPose(float x, float y, float theta) {
-        transform = Transform.fromXYPlanePose2D(x, y, theta);
+        transform = Transform.fromXYPlanePose2D(x * gl_scale_factor, y * gl_scale_factor, theta);
+        //transform = Transform.fromXYPlanePose2D(x, y, theta);
     }
 
     private void updateVertexBuffer(LaserScan laserScan, int stride) {
@@ -102,9 +103,15 @@ public class LaserScanLayer extends DefaultLayer {
             // look a lot nicer.
             if (minimumRange < range && range < maximumRange) {
                 // x, y, z
-                vertexBackBuffer.put((float) (range * Math.cos(angle)));
-                vertexBackBuffer.put((float) (range * Math.sin(angle)));
+                //Log.d(TAG, "drawing angle = " + angle + ", range = " + range);
+                vertexBackBuffer.put((float) (range * Math.cos(angle)) * gl_scale_factor);
+                vertexBackBuffer.put((float) (range * Math.sin(angle)) * gl_scale_factor);
                 vertexBackBuffer.put(0);
+            } else {
+                vertexBackBuffer.put(0);
+                vertexBackBuffer.put(0);
+                vertexBackBuffer.put(0);
+                //Log.d(TAG, "skipping angle = " + angle + ", range = " + range);
             }
             angle += angleIncrement * stride;
         }

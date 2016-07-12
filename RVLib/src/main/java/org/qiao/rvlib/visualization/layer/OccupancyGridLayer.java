@@ -55,7 +55,7 @@ public class OccupancyGridLayer extends DefaultLayer {
         /**
          * Points to the top left of the {@link Tile}.
          */
-        private Transform origin;
+        private Transform mapcenter;
 
         /**
          * Width of the {@link Tile}.
@@ -87,15 +87,15 @@ public class OccupancyGridLayer extends DefaultLayer {
         }
 
         public void update() {
-            Preconditions.checkNotNull(origin);
+            Preconditions.checkNotNull(mapcenter);
             Preconditions.checkNotNull(stride);
-            textureBitmap.updateFromPixelBuffer(pixelBuffer, stride, resolution, origin, COLOR_UNKNOWN);
+            textureBitmap.updateFromPixelBuffer(pixelBuffer, stride, resolution, mapcenter, COLOR_UNKNOWN);
             pixelBuffer.clear();
             ready = true;
         }
 
-        public void setOrigin(Transform origin) {
-            this.origin = origin;
+        public void setMapCenter(Transform mapcenter) {
+            this.mapcenter = mapcenter;
         }
 
         public void setStride(int stride) {
@@ -105,6 +105,7 @@ public class OccupancyGridLayer extends DefaultLayer {
 
     private final List<Tile> tiles;
 
+    private Transform mapcenter; // mapcenter of THIS LAYER should align to center of map
     private boolean ready;
     private GraphName frame;
     private GL10 previousGl;
@@ -142,35 +143,52 @@ public class OccupancyGridLayer extends DefaultLayer {
     public void onStart(VisualizationView view) {
         super.onStart(view);
         previousGl = null;
-//        getSubscriber().addMessageListener(new MessageListener<nav_msgs.OccupancyGrid>() {
-//            @Override
-//            public void onNewMessage(nav_msgs.OccupancyGrid message) {
-//                update(message);
-//            }
-//        });
     }
     public void updateOccupancyGrid(OccupancyGrid occupancygrid) {
         final float resolution = occupancygrid.getInfo().getResolution();
-        final int width = occupancygrid.getInfo().getWidth();
-        final int height = occupancygrid.getInfo().getHeight();
-        final int numTilesWide = (int) Math.ceil(width / (float) TextureBitmap.STRIDE);
-        final int numTilesHigh = (int) Math.ceil(height / (float) TextureBitmap.HEIGHT);
+        final float resolution_gl = resolution * gl_scale_factor;
+        final float occ_upperbound = occupancygrid.getInfo().getOccThreshold();
+        final float free_lowerbound = occupancygrid.getInfo().getFreeThreshold();
+        final int imgWidth = occupancygrid.getInfo().getWidth();
+        final int imgHeight = occupancygrid.getInfo().getHeight();
+        final int numTilesWide = (int) Math.ceil(imgWidth / (float) TextureBitmap.STRIDE);
+        final int numTilesHigh = (int) Math.ceil(imgHeight / (float) TextureBitmap.HEIGHT);
         final int numTiles = numTilesWide * numTilesHigh;
         Log.d(TAG, "numTiles: " + numTiles);
-        final Transform origin = occupancygrid.getInfo().getOrigin().toTransform();
+
+        // init mapcenter
+        mapcenter = Transform.identity();
+        mapcenter.getTranslation().setX(imgWidth * resolution);
+        mapcenter.getTranslation().setY(imgHeight * resolution);
+        mapcenter.getTranslation().setZ(0);
+        Log.d(TAG, "map centerX: " + mapcenter.getTranslation().getX());
+        Log.d(TAG, "map centerY: " + mapcenter.getTranslation().getY());
+
+        // scale for GL rendering
+        double tmpX = mapcenter.getTranslation().getX() * gl_scale_factor;
+        double tmpY = mapcenter.getTranslation().getY() * gl_scale_factor;
+        mapcenter.getTranslation().setX(-tmpX/2.f);
+        mapcenter.getTranslation().setY(-tmpY/2.f);
 
         while (tiles.size() < numTiles) {
-            tiles.add(new Tile(resolution));
+            tiles.add(new Tile(resolution_gl));
         }
         Log.d(TAG, "tiles.size = " + tiles.size());
+
         for (int y = 0; y < numTilesHigh; ++y) {
             for (int x = 0; x < numTilesWide; ++x) {
                 final int tileIndex = y * numTilesWide + x;
-                tiles.get(tileIndex).setOrigin(origin.multiply(new Transform(new Vector3(x * resolution * TextureBitmap.STRIDE, y * resolution * TextureBitmap.HEIGHT, 0.), Quaternion.identity())));
+                tiles.get(tileIndex).setMapCenter(mapcenter.multiply(
+                        new Transform(
+                                new Vector3(
+                                        x * resolution_gl * TextureBitmap.STRIDE,
+                                        y * resolution_gl * TextureBitmap.HEIGHT,
+                                        0.),
+                                Quaternion.identity())));
                 if (x < numTilesWide - 1) {
                     tiles.get(tileIndex).setStride(TextureBitmap.STRIDE);
                 } else {
-                    tiles.get(tileIndex).setStride(width % TextureBitmap.STRIDE);
+                    tiles.get(tileIndex).setStride(imgWidth % TextureBitmap.STRIDE);
                 }
             }
         }
@@ -179,34 +197,27 @@ public class OccupancyGridLayer extends DefaultLayer {
         int y = 0;
         final ByteBuffer buffer = occupancygrid.getData();
         while (buffer.hasRemaining()) {
-            Preconditions.checkState(y < height);
-            final int tileIndex = (y / TextureBitmap.STRIDE) * numTilesWide + x / TextureBitmap.STRIDE;
-            final byte pixel = buffer.get();
-            if (pixel != -51) {
-                Log.d(TAG, "pixel(" + x + "," + y + ") = " + (int)pixel);
-            }
-            /*
-            if (pixel == -1) {
-                tiles.get(tileIndex).writeInt(COLOR_UNKNOWN);
+            Preconditions.checkState(y < imgHeight);
+            int tileIndex;
+            // order in ros...
+            tileIndex = (y / TextureBitmap.STRIDE) * numTilesWide + x / TextureBitmap.STRIDE;
+            //tileIndex = (numTilesHigh - 1 - y / TextureBitmap.STRIDE) * numTilesWide + x / TextureBitmap.STRIDE;
+
+            final int pixel = (int)buffer.get() & 0xFF;
+            // now pixel is [0, 255], normalize it to float point
+            float occ = ((float)pixel) / 255.f;
+            // revert the value
+            occ = 1.f - occ;
+            // Log.d(TAG, "pixel(" + x + "," + y + ") = " + occ + " tileIndex: " + tileIndex);
+            if (occ >= occ_upperbound) {
+                tiles.get(tileIndex).writeInt(COLOR_OCCUPIED);
+            } else if (occ < free_lowerbound) {
+                tiles.get(tileIndex).writeInt(COLOR_FREE);
             } else {
-                if (pixel < 50) {
-                    tiles.get(tileIndex).writeInt(COLOR_FREE);
-                } else {
-                    tiles.get(tileIndex).writeInt(COLOR_OCCUPIED);
-                }
-            }
-            */
-            if (pixel == -51) {
                 tiles.get(tileIndex).writeInt(COLOR_UNKNOWN);
-            } else {
-                if (pixel == -2) {
-                    tiles.get(tileIndex).writeInt(COLOR_FREE);
-                } else {
-                    tiles.get(tileIndex).writeInt(COLOR_OCCUPIED);
-                }
             }
             ++x;
-            if (x == width) {
+            if (x == imgWidth) {
                 x = 0;
                 ++y;
             }
@@ -216,63 +227,4 @@ public class OccupancyGridLayer extends DefaultLayer {
         }
         ready = true;
     }
-    /* drop ChannelBuffer
-    public void updateOccupancyGrid(OccupancyGrid occupancygrid) {
-        final float resolution = occupancygrid.getInfo().getResolution();
-        final int width = occupancygrid.getInfo().getWidth();
-        final int height = occupancygrid.getInfo().getHeight();
-        final int numTilesWide = (int) Math.ceil(width / (float) TextureBitmap.STRIDE);
-        final int numTilesHigh = (int) Math.ceil(height / (float) TextureBitmap.STRIDE);
-        final int numTiles = numTilesWide * numTilesHigh;
-        final Transform origin = occupancygrid.getInfo().getOrigin().toTransform();
-
-        while (tiles.size() < numTiles) {
-            tiles.add(new Tile(resolution));
-        }
-
-        for (int y = 0; y < numTilesHigh; ++y) {
-            for (int x = 0; x < numTilesWide; ++x) {
-                final int tileIndex = y * numTilesWide + x;
-                tiles.get(tileIndex).setOrigin(origin.multiply(new Transform(new Vector3(x *
-                        resolution * TextureBitmap.STRIDE,
-                        y * resolution * TextureBitmap.HEIGHT, 0.), Quaternion.identity())));
-                if (x < numTilesWide - 1) {
-                    tiles.get(tileIndex).setStride(TextureBitmap.STRIDE);
-                } else {
-                    tiles.get(tileIndex).setStride(width % TextureBitmap.STRIDE);
-                }
-            }
-        }
-
-        int x = 0;
-        int y = 0;
-        final ChannelBuffer buffer = occupancygrid.getData();
-        while (buffer.readable()) {
-            Preconditions.checkState(y < height);
-            final int tileIndex = (y / TextureBitmap.STRIDE) * numTilesWide + x / TextureBitmap.STRIDE;
-            final byte pixel = buffer.readByte();
-            if (pixel == -1) {
-                tiles.get(tileIndex).writeInt(COLOR_UNKNOWN);
-            } else {
-                if (pixel < 50) {
-                    tiles.get(tileIndex).writeInt(COLOR_FREE);
-                } else {
-                    tiles.get(tileIndex).writeInt(COLOR_OCCUPIED);
-                }
-            }
-
-            ++x;
-            if (x == width) {
-                x = 0;
-                ++y;
-            }
-        }
-
-        for (Tile tile : tiles) {
-            tile.update();
-        }
-
-        ready = true;
-    }
-    */
 }

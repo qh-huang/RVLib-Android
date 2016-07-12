@@ -20,6 +20,7 @@ public class RobotLayer extends DefaultLayer {
 
     public RobotLayer(GraphName frame) {
         this.frame = frame;
+        shape = new PixelSpacePoseShape();
     }
 
     public RobotLayer(String frame) {
@@ -27,9 +28,11 @@ public class RobotLayer extends DefaultLayer {
     }
 
     public void setRobotPose2D(float x, float y, float theta) {
-        Transform tf = Transform.fromXYPlanePose2D(x, y, theta);
-        //Log.d(TAG, tf.toString());
-        shape.setTransform(tf);
+        Transform tf = Transform.fromXYPlanePose2D(x * gl_scale_factor, y * gl_scale_factor, theta);
+        Log.d(TAG, tf.toString());
+        if (shape != null) {
+            shape.setTransform(tf);
+        }
     }
 
     @Override
@@ -39,16 +42,8 @@ public class RobotLayer extends DefaultLayer {
         }
     }
 
-    /*
     @Override
-    public void onStart(VisualizationView view, ConnectedNode connectedNode) {
-        shape = new PixelSpacePoseShape();
-    }
-    */
-    @Override
-    public void onStart(VisualizationView view) {
-        shape = new PixelSpacePoseShape();
-    }
+    public void onStart(VisualizationView view) {}
 
     public GraphName getFrame() {
         return frame;

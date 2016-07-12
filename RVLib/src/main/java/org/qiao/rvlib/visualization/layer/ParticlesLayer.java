@@ -16,8 +16,8 @@ public class ParticlesLayer extends DefaultLayer {
     private ArrayList<Shape> shapes;
 
     private final GraphName frame;
-    private float scale_factor = 0.7f;
-    private Color color = Color.fromHexAndAlpha("0a0b0c", 1.0f);
+    private float icon_scale_factor = 1.f;
+    private Color color = Color.fromHexAndAlpha("fa579d", 0.8f);
 
     public ParticlesLayer(GraphName frame) {
         this.frame = frame;
@@ -27,18 +27,22 @@ public class ParticlesLayer extends DefaultLayer {
         this(GraphName.of(frame));
     }
 
-    public void setScale(float s) { scale_factor = s; }
+    public void setIconScale(float s) { icon_scale_factor = s; }
     public void setColor(Color c) { color = c; }
 
-    public void addParticle(float x, float y, float theta) {
-        Transform tf = Transform.fromXYPlanePose2D(x, y, theta);
-        //Log.d(TAG, tf.toString());
-        PixelSpacePoseShape shape = new PixelSpacePoseShape();
-        shape.setScale(scale_factor);
-        shape.setColor(color);
-        shape.setTransform(tf);
+    public void updateParticles(ArrayList<float[]> poses) {
+        ArrayList<Shape> new_shapes = new ArrayList<>();
+        int index = 0;
+        for(float[] pose : poses) {
+            Transform tf = Transform.fromXYPlanePose2D(pose[0] * gl_scale_factor, pose[1] * gl_scale_factor, pose[2]);
+            PixelSpacePoseShape shape = new PixelSpacePoseShape();
+            shape.setScale(icon_scale_factor);
+            shape.setColor(color);
+            shape.setTransform(tf);
+            new_shapes.add(shape);
+        }
         synchronized (shapes) {
-            shapes.add(shape);
+            shapes = new_shapes;
         }
     }
 

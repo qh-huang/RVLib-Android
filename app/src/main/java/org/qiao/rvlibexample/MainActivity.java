@@ -16,6 +16,7 @@ import org.qiao.rvlib.visualization.layer.ParticlesLayer;
 import org.qiao.rvlib.visualization.layer.RobotLayer;
 
 import java.io.IOException;
+import java.util.ArrayList;
 
 public class MainActivity extends Activity {
     private VisualizationView visualizationView;
@@ -91,12 +92,15 @@ public class MainActivity extends Activity {
 
     public void onAddParticleBtnClick(View v) {
         final int NUM_OF_PARTICLES = 50;
+        ArrayList<float[]> particles = new ArrayList<>();
         for (int i=0; i<NUM_OF_PARTICLES; i++) {
-            double px = (Math.random() - 0.5) * 500;
-            double py = (Math.random() - 0.5) * 500;
-            double ptheta = Math.random() * Math.PI * 2;
-            particlesLayer.addParticle((float)px, (float)py, (float)ptheta);
+            float[] p = new float[3];
+            p[0] = (float)(Math.random() - 0.5) * 500;
+            p[1] = (float)(Math.random() - 0.5) * 500;
+            p[2] = (float)(Math.random() * Math.PI * 2);
+            particles.add(p);
         }
+        particlesLayer.updateParticles(particles);
     }
 
     public void onClearParticlesBtnClick(View v) {

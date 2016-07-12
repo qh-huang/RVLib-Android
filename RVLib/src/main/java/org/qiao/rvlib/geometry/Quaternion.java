@@ -1,5 +1,4 @@
 package org.qiao.rvlib.geometry;
-//package org.qiao.rvlib.geometry;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;

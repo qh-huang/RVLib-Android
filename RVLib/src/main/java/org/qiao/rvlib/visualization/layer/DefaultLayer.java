@@ -9,6 +9,9 @@ import javax.microedition.khronos.opengles.GL10;
 
 public abstract class DefaultLayer implements Layer {
 
+    protected float gl_scale_factor = 1.0f;
+    public void setGlScale(float s) { gl_scale_factor = s; }
+
     @Override
     public void init() {
     }
